@@ -74,5 +74,13 @@ def get_core_functions():
                         r"Note that, reference styles maybe more than one kind, you should transform each item correctly." +
                         r"Items need to be transformed:",
             "Suffix":   r"",
+        },
+        "Explain Code": {
+            "Prefix":   r"Act as a professional programmer, explain following code for me：" + "\n```\n",
+            "Suffix":   "\n```\n",
+        },
+        "Generate Code": {
+            "Prefix":   r"Act as a professional programmer, tell me how to implement following functions：" + "\n\n",
+            "Suffix":   r"",
         }
     }
