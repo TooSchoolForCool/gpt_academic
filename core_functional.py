@@ -39,10 +39,6 @@ def get_core_functions():
             "Suffix":   r"",
             "PreProcess": clear_line_break,    # 预处理：清除换行符
         },
-        "中译英": {
-            "Prefix":   r"Please translate following sentence to English:" + "\n\n",
-            "Suffix":   r"",
-        },
         "学术中英互译": {
             "Prefix":   r"I want you to act as a scientific English-Chinese translator, " +
                         r"I will provide you with some paragraphs in one language " +
@@ -59,28 +55,53 @@ def get_core_functions():
             "Prefix":   r"翻译成地道的中文：" + "\n\n",
             "Suffix":   r"",
         },
-        "找图片": {
-            "Prefix":   r"我需要你找一张网络图片。使用Unsplash API(https://source.unsplash.com/960x640/?<英语关键词>)获取图片URL，" +
-                        r"然后请使用Markdown格式封装，并且不要有反斜线，不要用代码块。现在，请按以下描述给我发送图片：" + "\n\n",
-            "Suffix":   r"",
-            "Visible": False,
-        },
-        "解释代码": {
-            "Prefix":   r"请解释以下代码：" + "\n```\n",
-            "Suffix":   "\n```\n",
-        },
-        "参考文献转Bib": {
-            "Prefix":   r"Here are some bibliography items, please transform them into bibtex style." +
-                        r"Note that, reference styles maybe more than one kind, you should transform each item correctly." +
-                        r"Items need to be transformed:",
+        "中译英": {
+            "Prefix":   r"Please translate following sentence to English:" + "\n\n",
             "Suffix":   r"",
         },
+        # "找图片": {
+        #     "Prefix":   r"我需要你找一张网络图片。使用Unsplash API(https://source.unsplash.com/960x640/?<英语关键词>)获取图片URL，" +
+        #                 r"然后请使用Markdown格式封装，并且不要有反斜线，不要用代码块。现在，请按以下描述给我发送图片：" + "\n\n",
+        #     "Suffix":   r"",
+        #     "Visible": False,
+        # },
+        # "解释代码": {
+        #     "Prefix":   r"请解释以下代码：" + "\n```\n",
+        #     "Suffix":   "\n```\n",
+        #     "Visible": False,
+        # },
+        # "参考文献转Bib": {
+        #     "Prefix":   r"Here are some bibliography items, please transform them into bibtex style." +
+        #                 r"Note that, reference styles maybe more than one kind, you should transform each item correctly." +
+        #                 r"Items need to be transformed:",
+        #     "Suffix":   r"",
+        #     "Visible": False,
+        # },
         "Explain Code": {
-            "Prefix":   r"Act as a professional programmer, explain following code for me：" + "\n```\n",
+            "Prefix":   r"I want you to act as a professional programmer, explain following code for me：" + "\n```\n",
             "Suffix":   "\n```\n",
         },
         "Generate Code": {
-            "Prefix":   r"Act as a professional programmer, tell me how to implement following functions：" + "\n\n",
+            "Prefix":   r"I want you to act as a professional programmer, tell me how to implement following functions：" + "\n\n",
             "Suffix":   r"",
-        }
+        },
+        "[General] Polish": {
+            "Prefix":   r"I want you to act as a professional writer, help me streamline following paragraph：" + "\n\n",
+            "Suffix":   r"",
+        },
+        "[General] Write": {
+            "Prefix":   r"I want you to act as a professional writer, write me a paragraph in terms of following points：" + "\n\n",
+            "Suffix":   r"",
+        },
+        "[Academic] Write": {
+            "Prefix":   r"I want you to act as a professional academic writer. I will provide you a list of key points, " +
+                        r"write me a paragraph using formal language and ensuring clarity, coherence, and readability." + "\n\n",
+            "Suffix":   r"",
+        },
+        "[Academic] Review": {
+            "Prefix":   r"You are a researcher in Artificial Intelligence, Robotics, and Computer Vision, " +
+                        r"write me a summary and a thorough assessment of the strengths and weaknesses of a paper." + 
+                        r"The paper abstract is as following: "  + "\n\n",
+            "Suffix":   r"",
+        },
     }
