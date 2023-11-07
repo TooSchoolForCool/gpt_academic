@@ -3,7 +3,7 @@ from transformers import AutoModel, AutoTokenizer
 import time
 import threading
 import importlib
-from toolbox import update_ui, get_conf
+from toolbox import update_ui, get_conf, ProxyNetworkActivate
 from multiprocessing import Process, Pipe
 
 load_message = "ChatGLM尚未加载，加载需要一段时间。注意，取决于`config.py`的配置，ChatGLM消耗大量的内存（CPU）或显存（GPU），也许会导致低配计算机卡死 ……"
@@ -48,16 +48,17 @@ class GetGLMHandle(Process):
 
         while True:
             try:
-                if self.chatglm_model is None:
-                    self.chatglm_tokenizer = AutoTokenizer.from_pretrained(_model_name_, trust_remote_code=True)
-                    if device=='cpu':
-                        self.chatglm_model = AutoModel.from_pretrained(_model_name_, trust_remote_code=True).float()
+                with ProxyNetworkActivate('Download_LLM'):
+                    if self.chatglm_model is None:
+                        self.chatglm_tokenizer = AutoTokenizer.from_pretrained(_model_name_, trust_remote_code=True)
+                        if device=='cpu':
+                            self.chatglm_model = AutoModel.from_pretrained(_model_name_, trust_remote_code=True).float()
+                        else:
+                            self.chatglm_model = AutoModel.from_pretrained(_model_name_, trust_remote_code=True).half().cuda()
+                        self.chatglm_model = self.chatglm_model.eval()
+                        break
                     else:
-                        self.chatglm_model = AutoModel.from_pretrained(_model_name_, trust_remote_code=True).half().cuda()
-                    self.chatglm_model = self.chatglm_model.eval()
-                    break
-                else:
-                    break
+                        break
             except:
                 retry += 1
                 if retry > 3: 
@@ -144,11 +145,8 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
             return
 
     if additional_fn is not None:
-        import core_functional
-        importlib.reload(core_functional)    # 热更新prompt
-        core_functional = core_functional.get_core_functions()
-        if "PreProcess" in core_functional[additional_fn]: inputs = core_functional[additional_fn]["PreProcess"](inputs)  # 获取预处理函数（如果有的话）
-        inputs = core_functional[additional_fn]["Prefix"] + inputs + core_functional[additional_fn]["Suffix"]
+        from core_functional import handle_core_functionality
+        inputs, history = handle_core_functionality(additional_fn, inputs, history, chatbot)
 
     # 处理历史信息
     history_feedin = []

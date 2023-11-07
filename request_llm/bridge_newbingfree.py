@@ -141,10 +141,10 @@ class NewBingHandle(Process):
             except:
                 self.success = False
                 tb_str = '\n```\n' + trimmed_format_exc() + '\n```\n'
-                self.child.send(f'[Local Message] 不能加载Newbing组件。{tb_str}')
+                self.child.send(f'[Local Message] 不能加载Newbing组件，请注意Newbing组件已不再维护。{tb_str}')
                 self.child.send('[Fail]')
                 self.child.send('[Finish]')
-                raise RuntimeError(f"不能加载Newbing组件。")
+                raise RuntimeError(f"不能加载Newbing组件，请注意Newbing组件已不再维护。")
 
         self.success = True
         try:
@@ -224,11 +224,8 @@ def predict(inputs, llm_kwargs, plugin_kwargs, chatbot, history=[], system_promp
             return
 
     if additional_fn is not None:
-        import core_functional
-        importlib.reload(core_functional)    # 热更新prompt
-        core_functional = core_functional.get_core_functions()
-        if "PreProcess" in core_functional[additional_fn]: inputs = core_functional[additional_fn]["PreProcess"](inputs)  # 获取预处理函数（如果有的话）
-        inputs = core_functional[additional_fn]["Prefix"] + inputs + core_functional[additional_fn]["Suffix"]
+        from core_functional import handle_core_functionality
+        inputs, history = handle_core_functionality(additional_fn, inputs, history, chatbot)
 
     history_feedin = []
     for i in range(len(history)//2):

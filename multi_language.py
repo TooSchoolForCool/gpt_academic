@@ -3,16 +3,19 @@
     
     
     Usage:
-        1. modify LANG
+        1. modify config.py, set your LLM_MODEL and API_KEY(s) to provide access to OPENAI (or any other LLM model provider)
+
+        2. modify LANG (below ↓)
             LANG = "English"
 
-        2. modify TransPrompt
+        3. modify TransPrompt (below ↓)
             TransPrompt = f"Replace each json value `#` with translated results in English, e.g., \"原始文本\":\"TranslatedText\". Keep Json format. Do not answer #."
 
-        3. Run `python multi_language.py`. 
+        4. Run `python multi_language.py`. 
             Note: You need to run it multiple times to increase translation coverage because GPT makes mistakes sometimes.
+           (You can also run `CACHE_ONLY=True python multi_language.py` to use cached translation mapping)
 
-        4. Find the translated program in `multi-language\English\*`
+        5. Find the translated program in `multi-language\English\*`
    
     P.S.
     
@@ -31,9 +34,13 @@ import functools
 import re
 import pickle
 import time
+from toolbox import get_conf
 
-CACHE_FOLDER = "gpt_log"
-blacklist = ['multi-language', 'gpt_log', '.git', 'private_upload', 'multi_language.py', 'build', '.github', '.vscode', '__pycache__', 'venv']
+CACHE_ONLY = os.environ.get('CACHE_ONLY', False)
+
+CACHE_FOLDER, = get_conf('PATH_LOGGING')
+
+blacklist = ['multi-language', CACHE_FOLDER, '.git', 'private_upload', 'multi_language.py', 'build', '.github', '.vscode', '__pycache__', 'venv']
 
 # LANG = "TraditionalChinese"
 # TransPrompt = f"Replace each json value `#` with translated results in Traditional Chinese, e.g., \"原始文本\":\"翻譯後文字\". Keep Json format. Do not answer #."
@@ -286,6 +293,7 @@ def trans_json(word_to_translate, language, special=False):
 
 
 def step_1_core_key_translate():
+    LANG_STD = 'std'
     def extract_chinese_characters(file_path):
         syntax = []
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -325,15 +333,18 @@ def step_1_core_key_translate():
     for d in chinese_core_keys:
         if d not in chinese_core_keys_norepeat: chinese_core_keys_norepeat.append(d)
     need_translate = []
-    cached_translation = read_map_from_json(language=LANG)
+    cached_translation = read_map_from_json(language=LANG_STD)
     cached_translation_keys = list(cached_translation.keys())
     for d in chinese_core_keys_norepeat:
         if d not in cached_translation_keys: 
             need_translate.append(d)
 
-    need_translate_mapping = trans(need_translate, language=LANG, special=True)
-    map_to_json(need_translate_mapping, language=LANG)
-    cached_translation = read_map_from_json(language=LANG)
+    if CACHE_ONLY:
+        need_translate_mapping = {}
+    else:
+        need_translate_mapping = trans(need_translate, language=LANG_STD, special=True)
+    map_to_json(need_translate_mapping, language=LANG_STD)
+    cached_translation = read_map_from_json(language=LANG_STD)
     cached_translation = dict(sorted(cached_translation.items(), key=lambda x: -len(x[0])))
 
     chinese_core_keys_norepeat_mapping = {}
@@ -471,10 +482,14 @@ def step_2_core_key_translate():
         if d not in cached_translation_keys: 
             need_translate.append(d)
 
-
-    up = trans_json(need_translate, language=LANG, special=False)
+    if CACHE_ONLY:
+        up = {}
+    else:
+        up = trans_json(need_translate, language=LANG, special=False)
     map_to_json(up, language=LANG)
     cached_translation = read_map_from_json(language=LANG)
+    LANG_STD = 'std'
+    cached_translation.update(read_map_from_json(language=LANG_STD))
     cached_translation = dict(sorted(cached_translation.items(), key=lambda x: -len(x[0])))
 
     # ===============================================

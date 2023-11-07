@@ -1,15 +1,19 @@
-from toolbox import CatchException, report_execption, write_results_to_file
-from toolbox import update_ui, promote_file_to_downloadzone
+from toolbox import CatchException, report_execption, get_log_folder, gen_time_str
+from toolbox import update_ui, promote_file_to_downloadzone, update_ui_lastest_msg, disable_auto_promotion
+from toolbox import write_history_to_file, promote_file_to_downloadzone
 from .crazy_utils import request_gpt_model_in_new_thread_with_ui_alive
 from .crazy_utils import request_gpt_model_multi_threads_with_very_awesome_ui_and_high_efficiency
 from .crazy_utils import read_and_clean_pdf_text
+from .pdf_fns.parse_pdf import parse_pdf, get_avail_grobid_url, translate_pdf
 from colorful import *
+import copy
+import os
+import math
 
 @CatchException
-def 批量翻译PDF文档(txt, llm_kwargs, plugin_kwargs, chatbot, history, sys_prompt, web_port):
-    import glob
-    import os
+def 批量翻译PDF文档(txt, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, web_port):
 
+    disable_auto_promotion(chatbot)
     # 基本信息：功能、贡献者
     chatbot.append([
         "函数插件功能？",
@@ -20,55 +24,75 @@ def 批量翻译PDF文档(txt, llm_kwargs, plugin_kwargs, chatbot, history, sys_
     try:
         import fitz
         import tiktoken
+        import scipdf
     except:
         report_execption(chatbot, history,
                          a=f"解析项目: {txt}",
-                         b=f"导入软件依赖失败。使用该模块需要额外依赖，安装方法```pip install --upgrade pymupdf tiktoken```。")
+                         b=f"导入软件依赖失败。使用该模块需要额外依赖，安装方法```pip install --upgrade pymupdf tiktoken scipdf_parser```。")
         yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
         return
 
     # 清空历史，以免输入溢出
     history = []
 
+    from .crazy_utils import get_files_from_everything
+    success, file_manifest, project_folder = get_files_from_everything(txt, type='.pdf')
     # 检测输入参数，如没有给定输入参数，直接退出
-    if os.path.exists(txt):
-        project_folder = txt
-    else:
-        if txt == "":
-            txt = '空空如也的输入栏'
-        report_execption(chatbot, history,
-                         a=f"解析项目: {txt}", b=f"找不到本地项目或无权访问: {txt}")
-        yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
-        return
-
-    # 搜索需要处理的文件清单
-    file_manifest = [f for f in glob.glob(
-        f'{project_folder}/**/*.pdf', recursive=True)]
+    if not success:
+        if txt == "": txt = '空空如也的输入栏'
 
     # 如果没找到任何文件
     if len(file_manifest) == 0:
         report_execption(chatbot, history,
-                         a=f"解析项目: {txt}", b=f"找不到任何.tex或.pdf文件: {txt}")
+                         a=f"解析项目: {txt}", b=f"找不到任何.pdf拓展名的文件: {txt}")
         yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
         return
 
     # 开始正式执行任务
-    yield from 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, sys_prompt)
+    grobid_url = get_avail_grobid_url()
+    if grobid_url is not None:
+        yield from 解析PDF_基于GROBID(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, grobid_url)
+    else:
+        yield from update_ui_lastest_msg("GROBID服务不可用，请检查config中的GROBID_URL。作为替代，现在将执行效果稍差的旧版代码。", chatbot, history, delay=3)
+        yield from 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt)
 
 
-def 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, sys_prompt):
-    import os
-    import copy
-    import tiktoken
-    TOKEN_LIMIT_PER_FRAGMENT = 1280
+def 解析PDF_基于GROBID(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt, grobid_url):
+    import copy, json
+    TOKEN_LIMIT_PER_FRAGMENT = 1024
     generated_conclusion_files = []
     generated_html_files = []
+    DST_LANG = "中文"
+    from crazy_functions.pdf_fns.report_gen_html import construct_html
     for index, fp in enumerate(file_manifest):
+        chatbot.append(["当前进度：", f"正在连接GROBID服务，请稍候: {grobid_url}\n如果等待时间过长，请修改config中的GROBID_URL，可修改成本地GROBID服务。"]); yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
+        article_dict = parse_pdf(fp, grobid_url)
+        grobid_json_res = os.path.join(get_log_folder(), gen_time_str() + "grobid.json")
+        with open(grobid_json_res, 'w+', encoding='utf8') as f:
+            f.write(json.dumps(article_dict, indent=4, ensure_ascii=False))
+        promote_file_to_downloadzone(grobid_json_res, chatbot=chatbot)
+        
+        if article_dict is None: raise RuntimeError("解析PDF失败，请检查PDF是否损坏。")
+        yield from translate_pdf(article_dict, llm_kwargs, chatbot, fp, generated_conclusion_files, TOKEN_LIMIT_PER_FRAGMENT, DST_LANG)
+    chatbot.append(("给出输出文件清单", str(generated_conclusion_files + generated_html_files)))
+    yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
 
+
+def 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot, history, system_prompt):
+    """
+    此函数已经弃用
+    """
+    import copy
+    TOKEN_LIMIT_PER_FRAGMENT = 1024
+    generated_conclusion_files = []
+    generated_html_files = []
+    from crazy_functions.pdf_fns.report_gen_html import construct_html
+    for index, fp in enumerate(file_manifest):
         # 读取PDF文件
         file_content, page_one = read_and_clean_pdf_text(fp)
         file_content = file_content.encode('utf-8', 'ignore').decode()   # avoid reading non-utf8 chars
         page_one = str(page_one).encode('utf-8', 'ignore').decode()      # avoid reading non-utf8 chars
+
         # 递归地切割PDF文件
         from .crazy_utils import breakdown_txt_to_satisfy_token_limit_for_pdf
         from request_llm.bridge_all import model_info
@@ -113,10 +137,11 @@ def 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot,
         final = ["一、论文概况\n\n---\n\n", paper_meta_info.replace('# ', '### ') + '\n\n---\n\n', "二、论文翻译", ""]
         final.extend(gpt_response_collection_md)
         create_report_file_name = f"{os.path.basename(fp)}.trans.md"
-        res = write_results_to_file(final, file_name=create_report_file_name)
+        res = write_history_to_file(final, create_report_file_name)
+        promote_file_to_downloadzone(res, chatbot=chatbot)
 
         # 更新UI
-        generated_conclusion_files.append(f'./gpt_log/{create_report_file_name}')
+        generated_conclusion_files.append(f'{get_log_folder()}/{create_report_file_name}')
         chatbot.append((f"{fp}完成了吗？", res))
         yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
 
@@ -140,8 +165,7 @@ def 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot,
                     trans = k
                     ch.add_row(a=orig, b=trans)
             create_report_file_name = f"{os.path.basename(fp)}.trans.html"
-            ch.save_file(create_report_file_name)
-            generated_html_files.append(f'./gpt_log/{create_report_file_name}')
+            generated_html_files.append(ch.save_file(create_report_file_name))
         except:
             from toolbox import trimmed_format_exc
             print('writing html result failed:', trimmed_format_exc())
@@ -158,50 +182,4 @@ def 解析PDF(file_manifest, project_folder, llm_kwargs, plugin_kwargs, chatbot,
     chatbot.append(("给出输出文件清单", str(generated_conclusion_files + generated_html_files)))
     yield from update_ui(chatbot=chatbot, history=history) # 刷新界面
 
-
-class construct_html():
-    def __init__(self) -> None:
-        self.css = """
-.row {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.column {
-  flex: 1;
-  padding: 10px;
-}
-
-.table-header {
-  font-weight: bold;
-  border-bottom: 1px solid black;
-}
-
-.table-row {
-  border-bottom: 1px solid lightgray;
-}
-
-.table-cell {
-  padding: 5px;
-}
-        """
-        self.html_string = f'<!DOCTYPE html><head><meta charset="utf-8"><title>翻译结果</title><style>{self.css}</style></head>'
-
-
-    def add_row(self, a, b):
-        tmp = """
-<div class="row table-row">
-    <div class="column table-cell">REPLACE_A</div>
-    <div class="column table-cell">REPLACE_B</div>
-</div>
-        """
-        from toolbox import markdown_convertion
-        tmp = tmp.replace('REPLACE_A', markdown_convertion(a))
-        tmp = tmp.replace('REPLACE_B', markdown_convertion(b))
-        self.html_string += tmp
-
-
-    def save_file(self, file_name):
-        with open(f'./gpt_log/{file_name}', 'w', encoding='utf8') as f:
-            f.write(self.html_string.encode('utf-8', 'ignore').decode())
 
