@@ -10,7 +10,7 @@ def get_core_functions():
     return customize_functionals( get_core_functions_() )
 
 
-def get_core_functions():
+def get_core_functions_():
     return {
         "英语学术润色": {
             # 前缀，会被加在你的输入之前。例如，用来描述你的要求，例如翻译、解释代码、润色等等
